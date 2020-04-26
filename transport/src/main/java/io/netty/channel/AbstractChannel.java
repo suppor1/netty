@@ -413,16 +413,19 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
     /**
      * {@link Unsafe} implementation which sub-classes must extend and use.
+     * 每个channe 都有一个自己的 Unsafe
      */
     protected abstract class AbstractUnsafe implements Unsafe {
-
+        //出站数据缓存区
         private volatile ChannelOutboundBuffer outboundBuffer = new ChannelOutboundBuffer(AbstractChannel.this);
+        //接收缓冲处理器，就是用来更合理的分配缓冲器大小的
         private RecvByteBufAllocator.Handle recvHandle;
+        //是否正在 flush 数据
         private boolean inFlush0;
-        /** true if the channel has never been registered, false otherwise */
+        /** true if the channel has never been registered, false otherwise 通道是否注册过*/
         private boolean neverRegistered = true;
 
-        private void assertEventLoop() {
+        private void assertEventLoop() {//断言没有注册 或者 当前线程是 react 线程
             assert !registered || eventLoop.inEventLoop();
         }
 
@@ -452,21 +455,21 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         @Override
         public final void register(EventLoop eventLoop, final ChannelPromise promise) {
             ObjectUtil.checkNotNull(eventLoop, "eventLoop");
-            if (isRegistered()) {
+            if (isRegistered()) {//判断通道是否已经注册到一个事件循环器EventLoop，已经注册的通道不能重复注册
                 promise.setFailure(new IllegalStateException("registered to an event loop already"));
                 return;
             }
-            if (!isCompatible(eventLoop)) {
+            if (!isCompatible(eventLoop)) { //查看事件循环器 是否和通道NIO 类型匹配，这里就是查看是不是NioEventLoop
                 promise.setFailure(
                         new IllegalStateException("incompatible event loop type: " + eventLoop.getClass().getName()));
                 return;
             }
-
+            //将 eventLoop 绑定到该channel,也可以说该channel 绑定到了这个eventLoop ,后期改channel 上发生的所有事件都由这个eventLoop 处理
             AbstractChannel.this.eventLoop = eventLoop;
 
-            if (eventLoop.inEventLoop()) {
+            if (eventLoop.inEventLoop()) {//判断当钱线程是不是eventLoop 线程，如果是则直接执行注册
                 register0(promise);
-            } else {
+            } else {// 如果是外部线程调用，则需要包装一个异步task,由eventLoop 线程调度执行注册
                 try {
                     eventLoop.execute(new Runnable() {
                         @Override
@@ -485,35 +488,36 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
             }
         }
 
+        //这里是注册过程要做的事，进行真正的注册逻辑doRegister，其实就是将NIO通道注册到Selector上，然后进行处理器的待添加事件的处理，注册回调成功，管道传递注册事件，如果是第一次注册，管道传递通道激活事件，否则是设置自动读的话就注册读监听。
         private void register0(ChannelPromise promise) {
             try {
                 // check if the channel is still open as it could be closed in the mean time when the register
                 // call was outside of the eventLoop
-                if (!promise.setUncancellable() || !ensureOpen(promise)) {
+                if (!promise.setUncancellable() || !ensureOpen(promise)) {//确保通道是正常打开，否则就返回
                     return;
                 }
                 boolean firstRegistration = neverRegistered;
                 doRegister();
-                neverRegistered = false;
-                registered = true;
+                neverRegistered = false;// channel 已经注册过
+                registered = true;// channel 已经注册
 
                 // Ensure we call handlerAdded(...) before we actually notify the promise. This is needed as the
                 // user may already fire events through the pipeline in the ChannelFutureListener.
-                pipeline.invokeHandlerAddedIfNeeded();
+                pipeline.invokeHandlerAddedIfNeeded();//如果在注册前添加的时间处理器，则在完成第一次注册后要回调
 
-                safeSetSuccess(promise);
-                pipeline.fireChannelRegistered();
+                safeSetSuccess(promise);//回调标志位设置为success. 可以理解为完成回调
+                pipeline.fireChannelRegistered();//通道注册事件传递
                 // Only fire a channelActive if the channel has never been registered. This prevents firing
                 // multiple channel actives if the channel is deregistered and re-registered.
                 if (isActive()) {
                     if (firstRegistration) {
-                        pipeline.fireChannelActive();
-                    } else if (config().isAutoRead()) {
+                        pipeline.fireChannelActive();//只有是第一次注册才传递通道激活事件
+                    } else if (config().isAutoRead()) {//如果不是第一次注册，则查看通道是否开启了自动读
                         // This channel was registered before and autoRead() is set. This means we need to begin read
                         // again so that we process inbound data.
-                        //
+                        // 通道是重新注册，且开启了自动读，那我们处理入站数据时就必须重新注册读事件
                         // See https://github.com/netty/netty/issues/4805
-                        beginRead();
+                        beginRead();//设置了自动读，就进行读监听
                     }
                 }
             } catch (Throwable t) {
@@ -979,6 +983,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
         /**
          * Marks the specified {@code promise} as success.  If the {@code promise} is done already, log a message.
+         * 设置promise 为success. 如果promise已经完成。则记录一条 warn 日志。
          */
         protected final void safeSetSuccess(ChannelPromise promise) {
             if (!(promise instanceof VoidChannelPromise) && !promise.trySuccess()) {

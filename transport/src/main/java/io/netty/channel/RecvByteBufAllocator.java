@@ -25,28 +25,34 @@ import static io.netty.util.internal.ObjectUtil.checkNotNull;
 /**
  * Allocates a new receive buffer whose capacity is probably large enough to read all inbound data and small enough
  * not to waste its space.
+ * 这个是netty 提供的分配接受数据的缓冲区，优点：不浪费空间，大小正好可以装得下所有可读字节数据，提升内存利用率
  */
 public interface RecvByteBufAllocator {
     /**
      * Creates a new handle.  The handle provides the actual operations and keeps the internal information which is
      * required for predicting an optimal buffer capacity.
+     * 这个处理器的作用是保存buffer 一些内部信息，并且能预测一个合适的容量，也就用来做统计的
      */
     Handle newHandle();
 
     /**
      * @deprecated Use {@link ExtendedHandle}.
+     * 最近看下最新版本的netty 代码，既然过期了，那我们就不研究ta了
+     * 》》》》》 不行，我们还是的看一下呀，被{@link ExtendedHandle} 继承了，我们继续吧
      */
     @Deprecated
     interface Handle {
         /**
          * Creates a new receive buffer whose capacity is probably large enough to read all inbound data and small
          * enough not to waste its space.
+         * 创建一个接收缓冲，ta的大小正好可以放的下可读的字节数据且不浪费空间
          */
         ByteBuf allocate(ByteBufAllocator alloc);
 
         /**
          * Similar to {@link #allocate(ByteBufAllocator)} except that it does not allocate anything but just tells the
          * capacity.
+         * 猜测一个容量值，下次分配多大的缓冲区
          */
         int guess();
 
@@ -63,17 +69,22 @@ public interface RecvByteBufAllocator {
 
         /**
          * Increment the number of messages that have been read for the current read loop.
-         * @param numMessages The amount to increment by.
+         * 统计当前 {@link EventLoop} 读取的消息量
+         * @param numMessages The amount to increment by. 增长的基准
          */
         void incMessagesRead(int numMessages);
 
         /**
          * Set the bytes that have been read for the last read operation.
+         * 设置前一次读取的字节量
          * This may be used to increment the number of bytes that have been read.
+         * 这个值用来统计读取到消息总量，参考：{@link DefaultMaxMessagesRecvByteBufAllocator.MaxMessageHandle#lastBytesRead(int bytes)}
          * @param bytes The number of bytes from the previous read operation. This may be negative if an read error
          * occurs. If a negative value is seen it is expected to be return on the next call to
          * {@link #lastBytesRead()}. A negative value will signal a termination condition enforced externally
          * to this class and is not required to be enforced in {@link #continueReading()}.
+         * 即使是一个负数，在判断是不是需要继续读时也不是一个强制条件，比如在{@link DefaultMaxMessagesRecvByteBufAllocator#respectMaybeMoreData()} 设置了 true or false
+         *
          */
         void lastBytesRead(int bytes);
 

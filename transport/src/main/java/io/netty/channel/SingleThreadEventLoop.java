@@ -99,7 +99,7 @@ public abstract class SingleThreadEventLoop extends SingleThreadEventExecutor im
 
     /**
      * Adds a task to be run once at the end of next (or current) {@code eventloop} iteration.
-     *
+     * eventLoop 结束运行taskQueue 时执行 tailQueue 中的任务，如果没有就不执行
      * @param task to be added.
      */
     @UnstableApi

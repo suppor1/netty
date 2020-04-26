@@ -642,8 +642,8 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     }
 
     final void invokeHandlerAddedIfNeeded() {
-        assert channel.eventLoop().inEventLoop();
-        if (firstRegistration) {
+        assert channel.eventLoop().inEventLoop();//必须是react 线程完成回调
+        if (firstRegistration) {//第一次注册
             firstRegistration = false;
             // We are now registered to the EventLoop. It's time to call the callbacks for the ChannelHandlers,
             // that were added before the registration was done.

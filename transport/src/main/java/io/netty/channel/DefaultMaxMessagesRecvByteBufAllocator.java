@@ -26,8 +26,8 @@ import io.netty.util.UncheckedBooleanSupplier;
  * and also prevents overflow.
  */
 public abstract class DefaultMaxMessagesRecvByteBufAllocator implements MaxMessagesRecvByteBufAllocator {
-    private volatile int maxMessagesPerRead;
-    private volatile boolean respectMaybeMoreData = true;
+    private volatile int maxMessagesPerRead;//每个读事件中， 每次读事件中最多读取的消息量
+    private volatile boolean respectMaybeMoreData = true;//是否没有更多的数据，停止读了
 
     public DefaultMaxMessagesRecvByteBufAllocator() {
         this(1);
@@ -51,6 +51,9 @@ public abstract class DefaultMaxMessagesRecvByteBufAllocator implements MaxMessa
 
     /**
      * Determine if future instances of {@link #newHandle()} will stop reading if we think there is no more data.
+     * 用来决定，当我们认为没有更多的数据了，是否继续读，设置为true 读取的数据可能会大于 maxMessagePerRead 的限额，
+     * 设置为 false 则会保证每次读取数据不会超过 maxMessagePerRead 限额
+     *
      * @param respectMaybeMoreData
      * <ul>
      *     <li>{@code true} to stop reading if we think there is no more data. This may save a system call to read from
@@ -139,6 +142,9 @@ public abstract class DefaultMaxMessagesRecvByteBufAllocator implements MaxMessa
 
         @Override
         public boolean continueReading(UncheckedBooleanSupplier maybeMoreDataSupplier) {
+            //maybeMoreDataSupplier.get() 最后一次读取的量是否和希望读取的量相等，如果不相等，可能是数据已经读完了
+            //如果返回true,则表示希望读取的数据和最后一次读取的相同，即可表示输入缓冲区中可能还有数据
+            //respectMaybeMoreData 默认没有更多的数据了true
             return config.isAutoRead() &&
                    (!respectMaybeMoreData || maybeMoreDataSupplier.get()) &&
                    totalMessages < maxMessagePerRead &&

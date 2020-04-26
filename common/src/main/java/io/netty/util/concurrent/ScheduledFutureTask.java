@@ -33,7 +33,7 @@ final class ScheduledFutureTask<V> extends PromiseTask<V> implements ScheduledFu
 
     static long deadlineNanos(long delay) {
         long deadlineNanos = nanoTime() + delay;
-        // Guard against overflow
+        // Guard against overflow long 值越界后设置deadlineNanos 为 Long.MAX_VALUE
         return deadlineNanos < 0 ? Long.MAX_VALUE : deadlineNanos;
     }
 

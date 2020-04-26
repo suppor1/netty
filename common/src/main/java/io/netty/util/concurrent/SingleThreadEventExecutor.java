@@ -282,11 +282,12 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
         long nanoTime = AbstractScheduledEventExecutor.nanoTime();
         for (;;) {
             Runnable scheduledTask = pollScheduledTask(nanoTime);
-            if (scheduledTask == null) {
+            if (scheduledTask == null) {//队列中已经无任务
                 return true;
             }
             if (!taskQueue.offer(scheduledTask)) {
                 // No space left in the task queue add it back to the scheduledTaskQueue so we pick it up again.
+                //任务队列中没有剩余空间，将其重新添加到ScheduledTaskQueue中, 用于下次继续取出添加到任务队列 taskQueue[mpscQueue]
                 scheduledTaskQueue.add((ScheduledFutureTask<?>) scheduledTask);
                 return false;
             }
@@ -464,7 +465,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
             afterRunningAllTasks();
             return false;
         }
-
+        //本次任务执行的截止时间，eventLoop 线程不在在这里呆的时间太长，就绪的IO 需要及时的处理
         final long deadline = timeoutNanos > 0 ? ScheduledFutureTask.nanoTime() + timeoutNanos : 0;
         long runTasks = 0;
         long lastExecutionTime;
@@ -488,7 +489,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
                 break;
             }
         }
-
+        //收尾
         afterRunningAllTasks();
         this.lastExecutionTime = lastExecutionTime;
         return true;
